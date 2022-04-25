@@ -19,6 +19,7 @@ package com.example.android.camera2.basic.fragments
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.ImageFormat
 import android.os.Bundle
 import android.widget.Toast
 import androidx.core.content.ContextCompat
@@ -63,8 +64,13 @@ class PermissionsFragment : Fragment() {
 
     private fun nativateToCamera() {
         lifecycleScope.launchWhenStarted {
+            val item = SelectorFragment.Companion.FormatItem(
+                "JPEG ($id)", "0", ImageFormat.JPEG
+            )
             Navigation.findNavController(requireActivity(), R.id.fragment_container).navigate(
-                PermissionsFragmentDirections.actionPermissionsToSelector()
+                PermissionsFragmentDirections.actionSelectorToCamera(
+                    item.cameraId, item.format
+                )
             )
         }
     }
