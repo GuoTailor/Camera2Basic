@@ -23,16 +23,12 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.util.Log
-import android.view.ViewGroup.LayoutParams.MATCH_PARENT
-import android.widget.ImageView
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.navArgs
 import androidx.viewpager2.widget.ViewPager2
-import com.bumptech.glide.Glide
-import com.example.android.camera.utils.GenericListAdapter
 import com.example.android.camera.utils.decodeExifOrientation
+import com.example.android.camera2.basic.databinding.ImageViewerBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.io.BufferedInputStream
@@ -63,31 +59,22 @@ class ImageViewerFragment : Fragment() {
     private val isDepth: Boolean by lazy { args.depth }
 
     /** Data backing our Bitmap viewpager */
-    private val bitmapList: MutableList<Bitmap> = mutableListOf()
+    private var bitmap: Bitmap? = null
 
-    private fun imageViewFactory() = ImageView(requireContext()).apply {
-        layoutParams = ViewGroup.LayoutParams(MATCH_PARENT, MATCH_PARENT)
-    }
+    private var imageViewerBinding: ImageViewerBinding? = null
 
     override fun onCreateView(
-            inflater: LayoutInflater,
-            container: ViewGroup?,
-            savedInstanceState: Bundle?
-    ): View? = ViewPager2(requireContext()).apply {
-        // Populate the ViewPager and implement a cache of two media items
-        offscreenPageLimit = 2
-        adapter = GenericListAdapter(
-                bitmapList,
-                itemViewFactory = { imageViewFactory() }) { view, item, _ ->
-            view as ImageView
-            Glide.with(view).load(item).into(view)
-        }
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        imageViewerBinding = ImageViewerBinding.inflate(inflater, container, false)
+        return imageViewerBinding!!.root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        view as ViewPager2
         lifecycleScope.launch(Dispatchers.IO) {
 
             // Load input image file
@@ -95,22 +82,6 @@ class ImageViewerFragment : Fragment() {
 
             // Load the main JPEG image
             addItemToViewPager(view, decodeBitmap(inputBuffer, 0, inputBuffer.size))
-
-            // If we have depth data attached, attempt to load it
-            if (isDepth) {
-                try {
-                    val depthStart = findNextJpegEndMarker(inputBuffer, 2)
-                    addItemToViewPager(view, decodeBitmap(
-                            inputBuffer, depthStart, inputBuffer.size - depthStart))
-
-                    val confidenceStart = findNextJpegEndMarker(inputBuffer, depthStart)
-                    addItemToViewPager(view, decodeBitmap(
-                            inputBuffer, confidenceStart, inputBuffer.size - confidenceStart))
-
-                } catch (exc: RuntimeException) {
-                    Log.e(TAG, "Invalid start marker for depth or confidence data")
-                }
-            }
         }
     }
 
@@ -126,9 +97,9 @@ class ImageViewerFragment : Fragment() {
     }
 
     /** Utility function used to add an item to the viewpager and notify it, in the main thread */
-    private fun addItemToViewPager(view: ViewPager2, item: Bitmap) = view.post {
-        bitmapList.add(item)
-        view.adapter!!.notifyDataSetChanged()
+    private fun addItemToViewPager(view: View, item: Bitmap) = view.post {
+        bitmap = item
+        imageViewerBinding!!.image.setImageBitmap(item)
     }
 
     /** Utility function used to decode a [Bitmap] from a byte array */
@@ -139,7 +110,8 @@ class ImageViewerFragment : Fragment() {
 
         // Transform bitmap orientation using provided metadata
         return Bitmap.createBitmap(
-                bitmap, 0, 0, bitmap.width, bitmap.height, bitmapTransformation, true)
+            bitmap, 0, 0, bitmap.width, bitmap.height, bitmapTransformation, true
+        )
     }
 
     companion object {
@@ -159,12 +131,14 @@ class ImageViewerFragment : Fragment() {
             // Sanitize input arguments
             assert(start >= 0) { "Invalid start marker: $start" }
             assert(jpegBuffer.size > start) {
-                "Buffer size (${jpegBuffer.size}) smaller than start marker ($start)" }
+                "Buffer size (${jpegBuffer.size}) smaller than start marker ($start)"
+            }
 
             // Perform a linear search until the delimiter is found
             for (i in start until jpegBuffer.size - 1) {
                 if (jpegBuffer[i].toInt() == JPEG_DELIMITER_BYTES[0] &&
-                        jpegBuffer[i + 1].toInt() == JPEG_DELIMITER_BYTES[1]) {
+                    jpegBuffer[i + 1].toInt() == JPEG_DELIMITER_BYTES[1]
+                ) {
                     return i + 2
                 }
             }
