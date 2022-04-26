@@ -20,7 +20,7 @@ class SignView : View, View.OnTouchListener {
     //用来提供给Activity设置使用
     var mStroke = 0
     var mWidth = 0
-    private var mHeight = 0
+    var mHeight = 0
 
     constructor(context: Context?) : super(context) {
         init()
@@ -30,20 +30,8 @@ class SignView : View, View.OnTouchListener {
         init()
     }
 
-    constructor(context: Context?, @Nullable attrs: AttributeSet?, defStyleAttr: Int) : super(
-        context,
-        attrs,
-        defStyleAttr
-    ) {
-        init()
-    }
-
-    constructor(
-        context: Context?,
-        @Nullable attrs: AttributeSet?,
-        defStyleAttr: Int,
-        defStyleRes: Int
-    ) : super(context, attrs, defStyleAttr, defStyleRes) {
+    constructor(context: Context?, @Nullable attrs: AttributeSet?, defStyleAttr: Int)
+            : super(context, attrs, defStyleAttr) {
         init()
     }
 

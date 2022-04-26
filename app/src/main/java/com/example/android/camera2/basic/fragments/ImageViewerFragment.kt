@@ -20,6 +20,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -69,6 +70,10 @@ class ImageViewerFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View {
         imageViewerBinding = ImageViewerBinding.inflate(inflater, container, false)
+        imageViewerBinding!!.send.setOnClickListener {
+            Log.i(TAG, "onCreateView: >>>>>>>>>>")
+            imageViewerBinding
+        }
         return imageViewerBinding!!.root
     }
 
@@ -81,7 +86,13 @@ class ImageViewerFragment : Fragment() {
             val inputBuffer = loadInputBuffer()
 
             // Load the main JPEG image
-            addItemToViewPager(view, decodeBitmap(inputBuffer, 0, inputBuffer.size))
+            val item = decodeBitmap(inputBuffer, 0, inputBuffer.size)
+            bitmap = item
+            Log.i(TAG, "onCreateView: " + item.height + " " + item.width)
+            Log.i(TAG, "onCreateView: " + imageViewerBinding!!.signView.height + " " + imageViewerBinding!!.signView.width)
+            view.post {
+                imageViewerBinding!!.image.setImageBitmap(item)
+            }
         }
     }
 
@@ -94,12 +105,6 @@ class ImageViewerFragment : Fragment() {
                 stream.close()
             }
         }
-    }
-
-    /** Utility function used to add an item to the viewpager and notify it, in the main thread */
-    private fun addItemToViewPager(view: View, item: Bitmap) = view.post {
-        bitmap = item
-        imageViewerBinding!!.image.setImageBitmap(item)
     }
 
     /** Utility function used to decode a [Bitmap] from a byte array */
