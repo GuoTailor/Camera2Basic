@@ -80,20 +80,21 @@ class ImageViewerFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        lifecycleScope.launch(Dispatchers.IO) {
+        // Load input image file
+        val inputBuffer = loadInputBuffer()
 
-            // Load input image file
-            val inputBuffer = loadInputBuffer()
-
-            // Load the main JPEG image
-            val item = decodeBitmap(inputBuffer, 0, inputBuffer.size)
-            bitmap = item
-            Log.i(TAG, "onCreateView: " + item.height + " " + item.width)
-            Log.i(TAG, "onCreateView: " + imageViewerBinding!!.signView.height + " " + imageViewerBinding!!.signView.width)
-            view.post {
-                imageViewerBinding!!.image.setImageBitmap(item)
-            }
+        // Load the main JPEG image
+        val item = decodeBitmap(inputBuffer, 0, inputBuffer.size)
+        bitmap = item
+        Log.i(TAG, "onCreateView: " + item.height + " " + item.width)
+        Log.i(TAG, "onCreateView: " + imageViewerBinding!!.signView.height + " " + imageViewerBinding!!.signView.width)
+        imageViewerBinding!!.signView.mHeight = item.height
+        imageViewerBinding!!.signView.mWidth = item.width
+        imageViewerBinding!!.signView.mBitmap = item
+        view.post {
+            imageViewerBinding!!.image.setImageBitmap(item)
         }
+
     }
 
     /** Utility function used to read input file into a byte array */
