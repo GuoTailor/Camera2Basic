@@ -11,6 +11,7 @@ import kotlin.math.min
 
 class SignView : View, View.OnTouchListener {
     private val TAG = SignView::class.simpleName
+    private val paint = Paint()
     var mBitmap: Bitmap? = null
     var path: Path? = null
     var boundary: Rect? = null
@@ -61,7 +62,6 @@ class SignView : View, View.OnTouchListener {
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        val paint = Paint()
         paint.style = Paint.Style.STROKE
         paint.color = Color.RED
         paint.isAntiAlias = true
@@ -79,7 +79,7 @@ class SignView : View, View.OnTouchListener {
                 invalidate()
             }
             MotionEvent.ACTION_MOVE -> {
-                path!!.lineTo(event.x / ratio, (event.y - offset)/ ratio)
+                path!!.lineTo(event.x / ratio, (event.y - offset) / ratio)
                 invalidate()
             }
         }

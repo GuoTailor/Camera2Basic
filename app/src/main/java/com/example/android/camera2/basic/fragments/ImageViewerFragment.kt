@@ -30,8 +30,11 @@ import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.navArgs
 import com.example.android.camera.utils.decodeExifOrientation
 import com.example.android.camera2.basic.databinding.ImageViewerBinding
+import com.example.android.camera2.basic.saveToAlbum
 import java.io.BufferedInputStream
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.*
 import kotlin.math.max
 
 
@@ -71,7 +74,9 @@ class ImageViewerFragment : Fragment() {
         imageViewerBinding = ImageViewerBinding.inflate(inflater, container, false)
         imageViewerBinding!!.send.setOnClickListener {
             Log.i(TAG, "onCreateView: >>>>>>>>>>")
-            imageViewerBinding
+            val bitmap = imageViewerBinding!!.signView.mBitmap
+            val sdf = SimpleDateFormat("yyyy_MM_dd_HH_mm_ss_SSS", Locale.getDefault())
+            bitmap!!.saveToAlbum(it.context, "IMG_${sdf.format(Date())}.jpg", null, 100)
         }
         return imageViewerBinding!!.root
     }
