@@ -16,22 +16,20 @@
 
 package com.example.android.camera2.basic.fragments
 
+import android.content.res.Resources
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.os.Bundle
+import android.util.DisplayMetrics
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.navArgs
-import androidx.viewpager2.widget.ViewPager2
 import com.example.android.camera.utils.decodeExifOrientation
 import com.example.android.camera2.basic.databinding.ImageViewerBinding
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import java.io.BufferedInputStream
 import java.io.File
 import kotlin.math.max
@@ -51,6 +49,7 @@ class ImageViewerFragment : Fragment() {
             val scaleFactorY = outHeight / DOWNSAMPLE_SIZE + 1
             inSampleSize = max(scaleFactorX, scaleFactorY)
         }
+        inMutable = true
     }
 
     /** Bitmap transformation derived from passed arguments */
@@ -86,11 +85,15 @@ class ImageViewerFragment : Fragment() {
         // Load the main JPEG image
         val item = decodeBitmap(inputBuffer, 0, inputBuffer.size)
         bitmap = item
-        Log.i(TAG, "onCreateView: " + item.height + " " + item.width)
-        Log.i(TAG, "onCreateView: " + imageViewerBinding!!.signView.height + " " + imageViewerBinding!!.signView.width)
-        imageViewerBinding!!.signView.mHeight = item.height
-        imageViewerBinding!!.signView.mWidth = item.width
-        imageViewerBinding!!.signView.mBitmap = item
+        val resources = this.resources
+        val dm = resources.displayMetrics
+        val screenWidth = dm.widthPixels
+        val screenHeight = dm.heightPixels
+        Log.i(TAG, "onCreateView: " + item.width + " " + item.height)
+        Log.i(TAG, "onViewCreated: $screenWidth $screenHeight")
+
+        imageViewerBinding!!.signView.prepare(item, screenWidth, screenHeight)
+
         view.post {
             imageViewerBinding!!.image.setImageBitmap(item)
         }

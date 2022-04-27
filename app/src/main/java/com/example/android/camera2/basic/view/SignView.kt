@@ -7,6 +7,7 @@ import android.util.Log
 import android.view.MotionEvent
 import android.view.View
 import androidx.annotation.Nullable
+import kotlin.math.min
 
 class SignView : View, View.OnTouchListener {
     private val TAG = SignView::class.simpleName
@@ -22,6 +23,8 @@ class SignView : View, View.OnTouchListener {
     var mStroke = 0
     var mWidth = 0
     var mHeight = 0
+    var ratio = 1F
+    var offset = 0F
 
     constructor(context: Context?) : super(context) {
         init()
@@ -43,10 +46,17 @@ class SignView : View, View.OnTouchListener {
         setOnTouchListener(this)
     }
 
-    override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
-        super.onLayout(changed, left, top, right, bottom)
+    fun prepare(bitmap: Bitmap, screenWidth: Int, screenHeight: Int) {
+        mBitmap = bitmap
+        mWidth = bitmap.width
+        mHeight = bitmap.height
         canvas1 = Canvas(mBitmap!!)
         boundary = Rect(0, 0, mWidth, mHeight)
+        val wf = screenWidth / mWidth.toFloat()
+        val hf = screenHeight / mHeight.toFloat()
+        ratio = min(wf, hf)
+        offset = (screenHeight / 2) - (mHeight * ratio / 2)
+        Log.d(TAG, "prepare: $wf $hf")
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -56,7 +66,7 @@ class SignView : View, View.OnTouchListener {
         paint.color = Color.RED
         paint.isAntiAlias = true
         paint.strokeWidth = mStroke.toFloat()
-        //canvas.drawPath(path!!, paint)
+//        canvas.drawPath(path!!, paint)
         canvas1!!.drawPath(path!!, paint)
         canvas.drawRect(boundary!!, paint)
     }
@@ -65,11 +75,11 @@ class SignView : View, View.OnTouchListener {
         isdraw = true
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
-                path!!.moveTo(event.x, event.y)
+                path!!.moveTo(event.x / ratio, (event.y - offset) / ratio)
                 invalidate()
             }
             MotionEvent.ACTION_MOVE -> {
-                path!!.lineTo(event.x, event.y)
+                path!!.lineTo(event.x / ratio, (event.y - offset)/ ratio)
                 invalidate()
             }
         }
