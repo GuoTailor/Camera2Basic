@@ -81,7 +81,8 @@ class ImageViewerFragment : Fragment() {
             val sdf = SimpleDateFormat("yyyy_MM_dd_HH_mm_ss_SSS", Locale.getDefault())
 //            bitmap!!.saveToAlbum(it.context, "IMG_${sdf.format(Date())}.jpg", null, 100)
             openDialog(it.context)
-//            val manager: FragmentManager = (context as FragmentActivity).supportFragmentManager
+        }
+        imageViewerBinding!!.back.setOnClickListener {
             parentFragmentManager.popBackStack()
         }
         return imageViewerBinding!!.root
