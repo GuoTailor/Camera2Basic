@@ -16,23 +16,24 @@
 
 package com.example.android.camera2.basic.fragments
 
-import android.content.res.Resources
+import android.content.Context
+import android.content.SharedPreferences
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.os.Bundle
-import android.util.DisplayMetrics
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.EditText
+import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentActivity
+import androidx.fragment.app.FragmentManager
 import androidx.navigation.fragment.navArgs
 import com.example.android.camera.utils.decodeExifOrientation
 import com.example.android.camera2.basic.databinding.ImageViewerBinding
-import com.example.android.camera2.basic.saveToAlbum
-import java.io.BufferedInputStream
-import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.max
@@ -64,6 +65,8 @@ class ImageViewerFragment : Fragment() {
     /** Data backing our Bitmap viewpager */
     private var bitmap: Bitmap? = null
 
+    private val sharedPref : SharedPreferences by lazy { requireActivity().getPreferences(Context.MODE_PRIVATE) }
+
     private var imageViewerBinding: ImageViewerBinding? = null
 
     override fun onCreateView(
@@ -76,7 +79,10 @@ class ImageViewerFragment : Fragment() {
             Log.i(TAG, "onCreateView: >>>>>>>>>>")
             val bitmap = imageViewerBinding!!.signView.mBitmap
             val sdf = SimpleDateFormat("yyyy_MM_dd_HH_mm_ss_SSS", Locale.getDefault())
-            bitmap!!.saveToAlbum(it.context, "IMG_${sdf.format(Date())}.jpg", null, 100)
+//            bitmap!!.saveToAlbum(it.context, "IMG_${sdf.format(Date())}.jpg", null, 100)
+            openDialog(it.context)
+//            val manager: FragmentManager = (context as FragmentActivity).supportFragmentManager
+            parentFragmentManager.popBackStack()
         }
         return imageViewerBinding!!.root
     }
@@ -85,10 +91,10 @@ class ImageViewerFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         // Load input image file
-        val inputBuffer = loadInputBuffer()
+//        val inputBuffer = loadInputBuffer()
 
         // Load the main JPEG image
-        val item = decodeBitmap(inputBuffer, 0, inputBuffer.size)
+        val item = args.bitmap
         bitmap = item
         val resources = this.resources
         val dm = resources.displayMetrics
@@ -105,8 +111,30 @@ class ImageViewerFragment : Fragment() {
 
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        imageViewerBinding!!.signView.clear()
+    }
+
+    private fun openDialog(context: Context) {
+        val inputServer = EditText(context)
+        inputServer.setText(sharedPref.getString("ip", "192.168.0.104"))
+        val builder = AlertDialog.Builder(context);
+        builder.setTitle("发送").setIcon(android.R.drawable.ic_dialog_info).setView(inputServer)
+            .setNegativeButton("取消", null);
+        builder.setPositiveButton("确认") { _, _ ->
+            val ip = inputServer.text.toString()
+            Log.d(TAG, "openDialog: $ip")
+            with (sharedPref.edit()) {
+                putString("ip", ip)
+                apply()
+            }
+        }
+        builder.show()
+    }
+
     /** Utility function used to read input file into a byte array */
-    private fun loadInputBuffer(): ByteArray {
+    /*private fun loadInputBuffer(): ByteArray {
         val inputFile = File(args.filePath)
         return BufferedInputStream(inputFile.inputStream()).let { stream ->
             ByteArray(stream.available()).also {
@@ -114,7 +142,7 @@ class ImageViewerFragment : Fragment() {
                 stream.close()
             }
         }
-    }
+    }*/
 
     /** Utility function used to decode a [Bitmap] from a byte array */
     private fun decodeBitmap(buffer: ByteArray, start: Int, length: Int): Bitmap {
@@ -132,7 +160,7 @@ class ImageViewerFragment : Fragment() {
         private val TAG = ImageViewerFragment::class.java.simpleName
 
         /** Maximum size of [Bitmap] decoded */
-        private const val DOWNSAMPLE_SIZE: Int = 1024  // 1MP
+        const val DOWNSAMPLE_SIZE: Int = 1024  // 1MP
 
         /** These are the magic numbers used to separate the different JPG data chunks */
         private val JPEG_DELIMITER_BYTES = arrayOf(-1, -39)

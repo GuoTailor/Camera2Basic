@@ -78,11 +78,6 @@
         android:label="Image Viewer" >
 
         <argument
-            android:name="file_path"
-            app:argType="string"
-            app:nullable="false"/>
-
-        <argument
             android:name="orientation"
             app:argType="integer"
             android:defaultValue="0" />
@@ -91,6 +86,11 @@
             android:name="depth"
             app:argType="boolean"
             android:defaultValue="false" />
+
+        <argument
+            android:name="bitmap"
+            app:argType="android.graphics.Bitmap"
+            app:nullable="false"/>
     </fragment>
 
 </navigation>

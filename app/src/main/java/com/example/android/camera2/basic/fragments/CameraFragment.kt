@@ -16,18 +16,12 @@
 
 package com.example.android.camera2.basic.fragments
 
+import android.R.attr.orientation
 import android.annotation.SuppressLint
 import android.content.Context
-import android.graphics.Color
-import android.graphics.ImageFormat
-import android.hardware.camera2.CameraCaptureSession
-import android.hardware.camera2.CameraCharacteristics
-import android.hardware.camera2.CameraDevice
-import android.hardware.camera2.CameraManager
-import android.hardware.camera2.CaptureRequest
-import android.hardware.camera2.CaptureResult
-import android.hardware.camera2.DngCreator
-import android.hardware.camera2.TotalCaptureResult
+import android.graphics.*
+import android.hardware.camera2.*
+import android.media.ExifInterface
 import android.media.Image
 import android.media.ImageReader
 import android.os.Build
@@ -35,22 +29,16 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
 import android.util.Log
-import android.view.LayoutInflater
-import android.view.Surface
-import android.view.SurfaceHolder
-import android.view.View
-import android.view.ViewGroup
+import android.view.*
 import androidx.core.graphics.drawable.toDrawable
-import androidx.exifinterface.media.ExifInterface
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
 import androidx.navigation.Navigation
 import androidx.navigation.fragment.navArgs
+import com.example.android.camera.utils.OrientationLiveData
 import com.example.android.camera.utils.computeExifOrientation
 import com.example.android.camera.utils.getPreviewOutputSize
-import com.example.android.camera.utils.OrientationLiveData
 import com.example.android.camera2.basic.CameraActivity
 import com.example.android.camera2.basic.R
 import com.example.android.camera2.basic.databinding.FragmentCameraBinding
@@ -59,17 +47,16 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.io.Closeable
 import java.io.File
-import java.io.FileOutputStream
 import java.io.IOException
 import java.text.SimpleDateFormat
+import java.util.*
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.TimeoutException
-import java.util.Date
-import java.util.Locale
-import kotlin.RuntimeException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
+import kotlin.math.max
+
 
 class CameraFragment : Fragment() {
 
@@ -232,7 +219,7 @@ class CameraFragment : Fragment() {
 
                     // Save the result to disk
                     val output = saveResult(result)
-                    Log.d(TAG, "Image saved: ${output.absolutePath}")
+                    /*Log.d(TAG, "Image saved: ${output.absolutePath}")
 
                     // If the result is a JPEG file, update EXIF metadata with orientation info
                     if (output.extension == "jpg") {
@@ -241,12 +228,12 @@ class CameraFragment : Fragment() {
                                 ExifInterface.TAG_ORIENTATION, result.orientation.toString())
                         exif.saveAttributes()
                         Log.d(TAG, "EXIF metadata saved: ${output.absolutePath}")
-                    }
+                    }*/
 
                     // Display the photo taken to user
                     lifecycleScope.launch(Dispatchers.Main) {
                         navController.navigate(CameraFragmentDirections
-                                .actionCameraToJpegViewer(output.absolutePath)
+                                .actionCameraToJpegViewer(output)
                                 .setOrientation(result.orientation)
                                 .setDepth(Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
                                         result.format == ImageFormat.DEPTH_JPEG))
@@ -404,32 +391,40 @@ class CameraFragment : Fragment() {
     }
 
     /** Helper function used to save a [CombinedCaptureResult] into a [File] */
-    private suspend fun saveResult(result: CombinedCaptureResult): File = suspendCoroutine { cont ->
+    private suspend fun saveResult(result: CombinedCaptureResult): Bitmap = suspendCoroutine { cont ->
         when (result.format) {
 
             // When the format is JPEG or DEPTH JPEG we can simply save the bytes as-is
             ImageFormat.JPEG, ImageFormat.DEPTH_JPEG -> {
+                val bitmapOptions = BitmapFactory.Options().apply {
+                    inJustDecodeBounds = false
+                    // Keep Bitmaps at less than 1 MP
+                    if (max(outHeight, outWidth) > ImageViewerFragment.DOWNSAMPLE_SIZE) {
+                        val scaleFactorX = outWidth / ImageViewerFragment.DOWNSAMPLE_SIZE + 1
+                        val scaleFactorY = outHeight / ImageViewerFragment.DOWNSAMPLE_SIZE + 1
+                        inSampleSize = max(scaleFactorX, scaleFactorY)
+                    }
+                    inMutable = true
+                }
                 val buffer = result.image.planes[0].buffer
                 val bytes = ByteArray(buffer.remaining()).apply { buffer.get(this) }
+                val bitmapImage = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bitmapOptions)
+                val matrix = Matrix()
+                val degree = when (result.orientation) {
+                    ExifInterface.ORIENTATION_ROTATE_90 -> 90
+                    ExifInterface.ORIENTATION_ROTATE_180 -> 180
+                    ExifInterface.ORIENTATION_ROTATE_270 -> 270
+                    else -> 0
+                }
+                matrix.postRotate(degree.toFloat())
+                val resizedBitmap: Bitmap = Bitmap.createBitmap(
+                    bitmapImage, 0, 0,
+                    bitmapImage.width, bitmapImage.height, matrix, true
+                )
                 try {
-                    val output = createFile(requireContext(), "jpg")
-                    FileOutputStream(output).use { it.write(bytes) }
-                    cont.resume(output)
+                    cont.resume(resizedBitmap)
                 } catch (exc: IOException) {
                     Log.e(TAG, "Unable to write JPEG image to file", exc)
-                    cont.resumeWithException(exc)
-                }
-            }
-
-            // When the format is RAW we use the DngCreator utility library
-            ImageFormat.RAW_SENSOR -> {
-                val dngCreator = DngCreator(characteristics, result.metadata)
-                try {
-                    val output = createFile(requireContext(), "dng")
-                    FileOutputStream(output).use { dngCreator.writeImage(it, result.image) }
-                    cont.resume(output)
-                } catch (exc: IOException) {
-                    Log.e(TAG, "Unable to write DNG image to file", exc)
                     cont.resumeWithException(exc)
                 }
             }
