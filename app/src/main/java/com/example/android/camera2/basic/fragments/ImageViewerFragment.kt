@@ -29,8 +29,7 @@ import android.view.ViewGroup
 import android.widget.EditText
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.FragmentActivity
-import androidx.fragment.app.FragmentManager
+import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.fragment.navArgs
 import com.example.android.camera.utils.decodeExifOrientation
 import com.example.android.camera2.basic.databinding.ImageViewerBinding
@@ -65,7 +64,7 @@ class ImageViewerFragment : Fragment() {
     /** Data backing our Bitmap viewpager */
     private var bitmap: Bitmap? = null
 
-    private val sharedPref : SharedPreferences by lazy { requireActivity().getPreferences(Context.MODE_PRIVATE) }
+    private val sharedPref: SharedPreferences by lazy { requireActivity().getPreferences(Context.MODE_PRIVATE) }
 
     private var imageViewerBinding: ImageViewerBinding? = null
 
@@ -83,7 +82,8 @@ class ImageViewerFragment : Fragment() {
             openDialog(it.context)
         }
         imageViewerBinding!!.back.setOnClickListener {
-            parentFragmentManager.popBackStack()
+            NavHostFragment.findNavController(this)
+                .popBackStack();
         }
         return imageViewerBinding!!.root
     }
@@ -126,7 +126,7 @@ class ImageViewerFragment : Fragment() {
         builder.setPositiveButton("确认") { _, _ ->
             val ip = inputServer.text.toString()
             Log.d(TAG, "openDialog: $ip")
-            with (sharedPref.edit()) {
+            with(sharedPref.edit()) {
                 putString("ip", ip)
                 apply()
             }
