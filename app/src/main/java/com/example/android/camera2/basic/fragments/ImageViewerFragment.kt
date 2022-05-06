@@ -33,6 +33,10 @@ import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.fragment.navArgs
 import com.example.android.camera.utils.decodeExifOrientation
 import com.example.android.camera2.basic.databinding.ImageViewerBinding
+import java.io.ByteArrayOutputStream
+import java.io.DataOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.max
@@ -130,8 +134,59 @@ class ImageViewerFragment : Fragment() {
                 putString("ip", ip)
                 apply()
             }
+            Thread{
+                upload(ip)
+            }.start()
         }
         builder.show()
+    }
+
+    fun upload(ip: String) {
+        val boundary = UUID.randomUUID().toString()
+        val PRE_FIX = "\r\n--$boundary\r\n" //定义开始
+        val END_FIX = "\r\n--$boundary--\r\n"  //定义结束
+        val sdf = SimpleDateFormat("yyyy_MM_dd_HH_mm_ss_SSS", Locale.getDefault())
+        val url = URL("http://$ip/ISAPI/Intelligent/FDLib/pictureUpload")
+        val conn: HttpURLConnection = url.openConnection() as HttpURLConnection
+        conn.doOutput = true
+        conn.doInput = true
+        conn.requestMethod = "POST"
+        conn.setRequestProperty("Content-Type", "multipart/form-data;boundary=$boundary");
+        conn.setRequestProperty("connection", "Keep-Alive")
+        conn.setRequestProperty("Charsert", "UTF-8")
+        conn.connectTimeout = 30000
+        conn.readTimeout = 30000
+        conn.useCaches = false
+
+        conn.connect()
+        val outputStream = DataOutputStream(conn.outputStream)
+        val strBuf = StringBuffer()
+        // 标识payLoad + 文件流的起始位置
+        strBuf.append(PRE_FIX)
+            .append("Content-Disposition: form-data; name=\"importImage\"; filename=IMG_${sdf.format(Date())}.jpg\r\n")
+            .append("Content-Type: application/octet-stream" + "\r\n")
+            .append("\r\n") //留一个空行
+        outputStream.write(strBuf.toString().toByteArray())
+        val format = Bitmap.CompressFormat.JPEG
+        imageViewerBinding!!.signView.mBitmap!!.compress(format, 100, outputStream)
+        strBuf.setLength(0)
+        strBuf.append(PRE_FIX)
+            .append("Content-Disposition: form-data; name=\"FaceAppendData\"\r\n")
+            .append("Content-Type: text/plain; charset=utf-8\r\n")
+            .append("\r\n")
+            .append("<?xml version='1.0' encoding='UTF-8'?><PictureUploadData><FDID>69369AD6FF1546018FFECED3B7B3AEAE</FDID><FaceAppendData><name>test</name><RegionCoordinatesList><RegionCoordinates><positionX>258</positionX><positionY>307</positionY></RegionCoordinates><RegionCoordinates><positionX>750</positionX><positionY>307</positionY></RegionCoordinates><RegionCoordinates><positionX>750</positionX><positionY>664</positionY></RegionCoordinates><RegionCoordinates><positionX>258</positionX><positionY>664</positionY></RegionCoordinates></RegionCoordinatesList><bornTime>2004-01-01</bornTime><sex>male</sex><certificateType>ID</certificateType><certificateNumber></certificateNumber><PersonInfoExtendList><PersonInfoExtend><id>1</id><enable>true</enable><name>test</name><value></value></PersonInfoExtend></PersonInfoExtendList></FaceAppendData></PictureUploadData>")
+        outputStream.write(strBuf.toString().toByteArray())
+        outputStream.write(END_FIX.toByteArray())
+        outputStream.flush()
+//        outputStream.close()
+        val responseCode: Int = conn.responseCode
+        if (responseCode == 200) {
+            val readBytes = conn.inputStream.readBytes()
+            val result  = String(readBytes)
+            Log.d(TAG, "upload: $result")
+            conn.inputStream.close()
+        }
+        conn.disconnect()
     }
 
     /** Utility function used to read input file into a byte array */
