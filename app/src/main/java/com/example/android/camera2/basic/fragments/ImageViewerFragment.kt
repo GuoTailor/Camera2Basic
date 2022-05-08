@@ -38,6 +38,7 @@ import com.burgstaller.okhttp.digest.CachingAuthenticator
 import com.burgstaller.okhttp.digest.Credentials
 import com.burgstaller.okhttp.digest.DigestAuthenticator
 import com.example.android.camera.utils.decodeExifOrientation
+import com.example.android.camera2.basic.ThreadManager
 import com.example.android.camera2.basic.databinding.ImageViewerBinding
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -115,7 +116,12 @@ class ImageViewerFragment : Fragment() {
         Log.i(TAG, "onCreateView: " + item.width + " " + item.height)
         Log.i(TAG, "onViewCreated: $screenWidth $screenHeight")
 
-        imageViewerBinding!!.signView.prepare(item, screenWidth, screenHeight, imageViewerBinding!!.image)
+        imageViewerBinding!!.signView.prepare(
+            item,
+            screenWidth,
+            screenHeight,
+            imageViewerBinding!!.image
+        )
 
         view.post {
             imageViewerBinding!!.image.setImageBitmap(item)
@@ -132,7 +138,7 @@ class ImageViewerFragment : Fragment() {
         val inputServer = EditText(context)
         inputServer.setText(sharedPref.getString("ip", "192.168.0.104"))
         val builder = AlertDialog.Builder(context);
-        builder.setTitle("发送").setIcon(android.R.drawable.ic_dialog_info).setView(inputServer)
+        builder.setTitle("服务器地址").setIcon(android.R.drawable.ic_dialog_info).setView(inputServer)
             .setNegativeButton("取消", null);
         builder.setPositiveButton("确认") { _, _ ->
             val ip = inputServer.text.toString()
@@ -141,10 +147,9 @@ class ImageViewerFragment : Fragment() {
                 putString("ip", ip)
                 apply()
             }
-
-            Thread {
+            ThreadManager.getInstance().execute {
                 uploade2(ip)
-            }.start()
+            }
         }
         builder.show()
     }
@@ -178,7 +183,7 @@ class ImageViewerFragment : Fragment() {
             .url(url)
             .post(requestBody)
             .build()
-        client.newCall(request).enqueue(object: Callback {
+        client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 Log.d(TAG, "onFailure: $call")
                 e.printStackTrace()
