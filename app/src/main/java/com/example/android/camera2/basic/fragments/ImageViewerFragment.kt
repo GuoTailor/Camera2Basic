@@ -27,18 +27,31 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.fragment.navArgs
+import com.burgstaller.okhttp.AuthenticationCacheInterceptor
+import com.burgstaller.okhttp.CachingAuthenticatorDecorator
+import com.burgstaller.okhttp.digest.CachingAuthenticator
+import com.burgstaller.okhttp.digest.Credentials
+import com.burgstaller.okhttp.digest.DigestAuthenticator
 import com.example.android.camera.utils.decodeExifOrientation
 import com.example.android.camera2.basic.databinding.ImageViewerBinding
+import okhttp3.*
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.ByteArrayOutputStream
-import java.io.DataOutputStream
-import java.net.HttpURLConnection
-import java.net.URL
+import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
+import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
 import java.util.*
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 import kotlin.math.max
 
 
@@ -80,9 +93,6 @@ class ImageViewerFragment : Fragment() {
         imageViewerBinding = ImageViewerBinding.inflate(inflater, container, false)
         imageViewerBinding!!.send.setOnClickListener {
             Log.i(TAG, "onCreateView: >>>>>>>>>>")
-            val bitmap = imageViewerBinding!!.signView.mBitmap
-            val sdf = SimpleDateFormat("yyyy_MM_dd_HH_mm_ss_SSS", Locale.getDefault())
-//            bitmap!!.saveToAlbum(it.context, "IMG_${sdf.format(Date())}.jpg", null, 100)
             openDialog(it.context)
         }
         imageViewerBinding!!.back.setOnClickListener {
@@ -95,9 +105,6 @@ class ImageViewerFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Load input image file
-//        val inputBuffer = loadInputBuffer()
-
         // Load the main JPEG image
         val item = args.bitmap
         bitmap = item
@@ -108,7 +115,7 @@ class ImageViewerFragment : Fragment() {
         Log.i(TAG, "onCreateView: " + item.width + " " + item.height)
         Log.i(TAG, "onViewCreated: $screenWidth $screenHeight")
 
-        imageViewerBinding!!.signView.prepare(item, screenWidth, screenHeight)
+        imageViewerBinding!!.signView.prepare(item, screenWidth, screenHeight, imageViewerBinding!!.image)
 
         view.post {
             imageViewerBinding!!.image.setImageBitmap(item)
@@ -134,59 +141,68 @@ class ImageViewerFragment : Fragment() {
                 putString("ip", ip)
                 apply()
             }
-            Thread{
-                upload(ip)
+
+            Thread {
+                uploade2(ip)
             }.start()
         }
         builder.show()
     }
 
-    fun upload(ip: String) {
-        val boundary = UUID.randomUUID().toString()
-        val PRE_FIX = "\r\n--$boundary\r\n" //定义开始
-        val END_FIX = "\r\n--$boundary--\r\n"  //定义结束
-        val sdf = SimpleDateFormat("yyyy_MM_dd_HH_mm_ss_SSS", Locale.getDefault())
-        val url = URL("http://$ip/ISAPI/Intelligent/FDLib/pictureUpload")
-        val conn: HttpURLConnection = url.openConnection() as HttpURLConnection
-        conn.doOutput = true
-        conn.doInput = true
-        conn.requestMethod = "POST"
-        conn.setRequestProperty("Content-Type", "multipart/form-data;boundary=$boundary");
-        conn.setRequestProperty("connection", "Keep-Alive")
-        conn.setRequestProperty("Charsert", "UTF-8")
-        conn.connectTimeout = 30000
-        conn.readTimeout = 30000
-        conn.useCaches = false
+    fun uploade2(ip: String) {
+        val authenticator = DigestAuthenticator(Credentials("admin", "Abc123456"))
 
-        conn.connect()
-        val outputStream = DataOutputStream(conn.outputStream)
-        val strBuf = StringBuffer()
-        // 标识payLoad + 文件流的起始位置
-        strBuf.append(PRE_FIX)
-            .append("Content-Disposition: form-data; name=\"importImage\"; filename=IMG_${sdf.format(Date())}.jpg\r\n")
-            .append("Content-Type: application/octet-stream" + "\r\n")
-            .append("\r\n") //留一个空行
-        outputStream.write(strBuf.toString().toByteArray())
-        val format = Bitmap.CompressFormat.JPEG
-        imageViewerBinding!!.signView.mBitmap!!.compress(format, 100, outputStream)
-        strBuf.setLength(0)
-        strBuf.append(PRE_FIX)
-            .append("Content-Disposition: form-data; name=\"FaceAppendData\"\r\n")
-            .append("Content-Type: text/plain; charset=utf-8\r\n")
-            .append("\r\n")
-            .append("<?xml version='1.0' encoding='UTF-8'?><PictureUploadData><FDID>69369AD6FF1546018FFECED3B7B3AEAE</FDID><FaceAppendData><name>test</name><RegionCoordinatesList><RegionCoordinates><positionX>258</positionX><positionY>307</positionY></RegionCoordinates><RegionCoordinates><positionX>750</positionX><positionY>307</positionY></RegionCoordinates><RegionCoordinates><positionX>750</positionX><positionY>664</positionY></RegionCoordinates><RegionCoordinates><positionX>258</positionX><positionY>664</positionY></RegionCoordinates></RegionCoordinatesList><bornTime>2004-01-01</bornTime><sex>male</sex><certificateType>ID</certificateType><certificateNumber></certificateNumber><PersonInfoExtendList><PersonInfoExtend><id>1</id><enable>true</enable><name>test</name><value></value></PersonInfoExtend></PersonInfoExtendList></FaceAppendData></PictureUploadData>")
-        outputStream.write(strBuf.toString().toByteArray())
-        outputStream.write(END_FIX.toByteArray())
-        outputStream.flush()
-//        outputStream.close()
-        val responseCode: Int = conn.responseCode
-        if (responseCode == 200) {
-            val readBytes = conn.inputStream.readBytes()
-            val result  = String(readBytes)
-            Log.d(TAG, "upload: $result")
-            conn.inputStream.close()
-        }
-        conn.disconnect()
+        val authCache: Map<String, CachingAuthenticator> = ConcurrentHashMap()
+
+        val client: OkHttpClient = OkHttpClient.Builder()
+            .authenticator(CachingAuthenticatorDecorator(authenticator, authCache))
+            .addInterceptor(AuthenticationCacheInterceptor(authCache))
+            .connectTimeout(3000, TimeUnit.MILLISECONDS)
+            .build()
+        val bitmap = imageViewerBinding!!.signView.mBitmap!!
+        val sdf = SimpleDateFormat("yyyy_MM_dd_HH_mm_ss_SSS", Locale.getDefault())
+        val baos = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, baos)
+
+        val body: RequestBody = baos.toByteArray().toRequestBody("image/jpeg".toMediaTypeOrNull())
+        baos.close()
+        val requestBody: RequestBody = MultipartBody.Builder().setType(MultipartBody.FORM)
+            .addFormDataPart(
+                "FaceAppendData",
+                "<?xml version='1.0' encoding='UTF-8'?><PictureUploadData><FDID>69369AD6FF1546018FFECED3B7B3AEAE</FDID><FaceAppendData><name>test</name><RegionCoordinatesList><RegionCoordinates><positionX>258</positionX><positionY>307</positionY></RegionCoordinates><RegionCoordinates><positionX>750</positionX><positionY>307</positionY></RegionCoordinates><RegionCoordinates><positionX>750</positionX><positionY>664</positionY></RegionCoordinates><RegionCoordinates><positionX>258</positionX><positionY>664</positionY></RegionCoordinates></RegionCoordinatesList><bornTime>2004-01-01</bornTime><sex>male</sex><certificateType>ID</certificateType><certificateNumber></certificateNumber><PersonInfoExtendList><PersonInfoExtend><id>1</id><enable>true</enable><name>test</name><value></value></PersonInfoExtend></PersonInfoExtendList></FaceAppendData></PictureUploadData>"
+            )
+            .addFormDataPart("importImage", "IMG_${sdf.format(Date())}.jpg", body)
+            .build()
+        val url = "http://$ip/ISAPI/Intelligent/FDLib/pictureUpload"
+        val request: Request = Request.Builder()
+            .url(url)
+            .post(requestBody)
+            .build()
+        client.newCall(request).enqueue(object: Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                Log.d(TAG, "onFailure: $call")
+                e.printStackTrace()
+                view?.post {
+                    Toast.makeText(requireContext(), "错误: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                Log.d(TAG, "onResponse: $response")
+                Log.d(TAG, "onResponse: ${response.body?.string()}")
+                if (response.code == 200) {
+                    view?.post {
+                        Toast.makeText(requireContext(), "上传成功", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    view?.post {
+                        Toast.makeText(requireContext(), "上传失败: $response", Toast.LENGTH_SHORT)
+                            .show()
+                    }
+                }
+            }
+
+        })
     }
 
     /** Utility function used to read input file into a byte array */

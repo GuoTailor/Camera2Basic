@@ -38,6 +38,7 @@ import androidx.navigation.Navigation
 import androidx.navigation.fragment.navArgs
 import com.example.android.camera.utils.OrientationLiveData
 import com.example.android.camera.utils.computeExifOrientation
+import com.example.android.camera.utils.decodeExifOrientation
 import com.example.android.camera.utils.getPreviewOutputSize
 import com.example.android.camera2.basic.CameraActivity
 import com.example.android.camera2.basic.R
@@ -122,9 +123,9 @@ class CameraFragment : Fragment() {
     private lateinit var relativeOrientation: OrientationLiveData
 
     override fun onCreateView(
-            inflater: LayoutInflater,
-            container: ViewGroup?,
-            savedInstanceState: Bundle?
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
     ): View {
         _fragmentCameraBinding = FragmentCameraBinding.inflate(inflater, container, false)
         return fragmentCameraBinding.root
@@ -143,10 +144,11 @@ class CameraFragment : Fragment() {
             override fun surfaceDestroyed(holder: SurfaceHolder) = Unit
 
             override fun surfaceChanged(
-                    holder: SurfaceHolder,
-                    format: Int,
-                    width: Int,
-                    height: Int) = Unit
+                holder: SurfaceHolder,
+                format: Int,
+                width: Int,
+                height: Int
+            ) = Unit
 
             override fun surfaceCreated(holder: SurfaceHolder) {
                 // Selects appropriate preview size and configures view finder
@@ -155,7 +157,10 @@ class CameraFragment : Fragment() {
                     characteristics,
                     SurfaceHolder::class.java
                 )
-                Log.d(TAG, "View finder size: ${fragmentCameraBinding.viewFinder.width} x ${fragmentCameraBinding.viewFinder.height}")
+                Log.d(
+                    TAG,
+                    "View finder size: ${fragmentCameraBinding.viewFinder.width} x ${fragmentCameraBinding.viewFinder.height}"
+                )
                 Log.d(TAG, "Selected preview size: $previewSize")
                 fragmentCameraBinding.viewFinder.setAspectRatio(
                     previewSize.width,
@@ -188,10 +193,12 @@ class CameraFragment : Fragment() {
 
         // Initialize an image reader which will be used to capture still photos
         val size = characteristics.get(
-                CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)!!
-                .getOutputSizes(args.pixelFormat).maxByOrNull { it.height * it.width }!!
+            CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP
+        )!!
+            .getOutputSizes(args.pixelFormat).maxByOrNull { it.height * it.width }!!
         imageReader = ImageReader.newInstance(
-                size.width, size.height, args.pixelFormat, IMAGE_BUFFER_SIZE)
+            size.width, size.height, args.pixelFormat, IMAGE_BUFFER_SIZE
+        )
 
         // Creates list of Surfaces where the camera will output frames
         val targets = listOf(fragmentCameraBinding.viewFinder.holder.surface, imageReader.surface)
@@ -200,7 +207,8 @@ class CameraFragment : Fragment() {
         session = createCaptureSession(camera, targets, cameraHandler)
 
         val captureRequest = camera.createCaptureRequest(
-                CameraDevice.TEMPLATE_PREVIEW).apply { addTarget(fragmentCameraBinding.viewFinder.holder.surface) }
+            CameraDevice.TEMPLATE_PREVIEW
+        ).apply { addTarget(fragmentCameraBinding.viewFinder.holder.surface) }
 
         // This will keep sending the capture request as frequently as possible until the
         // session is torn down or session.stopRepeating() is called
@@ -232,11 +240,15 @@ class CameraFragment : Fragment() {
 
                     // Display the photo taken to user
                     lifecycleScope.launch(Dispatchers.Main) {
-                        navController.navigate(CameraFragmentDirections
+                        navController.navigate(
+                            CameraFragmentDirections
                                 .actionCameraToJpegViewer(output)
-                                .setOrientation(result.orientation)
-                                .setDepth(Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
-                                        result.format == ImageFormat.DEPTH_JPEG))
+                                .setOrientation(androidx.exifinterface.media.ExifInterface.ORIENTATION_NORMAL)
+                                .setDepth(
+                                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+                                            result.format == ImageFormat.DEPTH_JPEG
+                                )
+                        )
                     }
                 }
 
@@ -249,9 +261,9 @@ class CameraFragment : Fragment() {
     /** Opens the camera and returns the opened device (as the result of the suspend coroutine) */
     @SuppressLint("MissingPermission")
     private suspend fun openCamera(
-            manager: CameraManager,
-            cameraId: String,
-            handler: Handler? = null
+        manager: CameraManager,
+        cameraId: String,
+        handler: Handler? = null
     ): CameraDevice = suspendCancellableCoroutine { cont ->
         manager.openCamera(cameraId, object : CameraDevice.StateCallback() {
             override fun onOpened(device: CameraDevice) = cont.resume(device)
@@ -282,9 +294,9 @@ class CameraFragment : Fragment() {
      * suspend coroutine
      */
     private suspend fun createCaptureSession(
-            device: CameraDevice,
-            targets: List<Surface>,
-            handler: Handler? = null
+        device: CameraDevice,
+        targets: List<Surface>,
+        handler: Handler? = null
     ): CameraCaptureSession = suspendCoroutine { cont ->
 
         // Create a capture session using the predefined targets; this also involves defining the
@@ -318,27 +330,30 @@ class CameraFragment : Fragment() {
         val imageQueue = ArrayBlockingQueue<Image>(IMAGE_BUFFER_SIZE)
         imageReader.setOnImageAvailableListener({ reader ->
             val image = reader.acquireNextImage()
-            Log.d(TAG, "Image available in queue: ${image.timestamp}")
+            Log.d(TAG, "队列中可用的图像: ${image.timestamp}")
             imageQueue.add(image)
         }, imageReaderHandler)
 
         val captureRequest = session.device.createCaptureRequest(
-                CameraDevice.TEMPLATE_STILL_CAPTURE).apply { addTarget(imageReader.surface) }
+            CameraDevice.TEMPLATE_STILL_CAPTURE
+        ).apply { addTarget(imageReader.surface) }
         session.capture(captureRequest.build(), object : CameraCaptureSession.CaptureCallback() {
 
             override fun onCaptureStarted(
-                    session: CameraCaptureSession,
-                    request: CaptureRequest,
-                    timestamp: Long,
-                    frameNumber: Long) {
+                session: CameraCaptureSession,
+                request: CaptureRequest,
+                timestamp: Long,
+                frameNumber: Long
+            ) {
                 super.onCaptureStarted(session, request, timestamp, frameNumber)
                 fragmentCameraBinding.viewFinder.post(animationTask)
             }
 
             override fun onCaptureCompleted(
-                    session: CameraCaptureSession,
-                    request: CaptureRequest,
-                    result: TotalCaptureResult) {
+                session: CameraCaptureSession,
+                request: CaptureRequest,
+                result: TotalCaptureResult
+            ) {
                 super.onCaptureCompleted(session, request, result)
                 val resultTimestamp = result.get(CaptureResult.SENSOR_TIMESTAMP)
                 Log.d(TAG, "Capture result received: $resultTimestamp")
@@ -360,8 +375,9 @@ class CameraFragment : Fragment() {
                         // TODO(owahltinez): b/142011420
                         // if (image.timestamp != resultTimestamp) continue
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
-                                image.format != ImageFormat.DEPTH_JPEG &&
-                                image.timestamp != resultTimestamp) continue
+                            image.format != ImageFormat.DEPTH_JPEG &&
+                            image.timestamp != resultTimestamp
+                        ) continue
                         Log.d(TAG, "Matching image dequeued: ${image.timestamp}")
 
                         // Unset the image reader listener
@@ -380,8 +396,11 @@ class CameraFragment : Fragment() {
                         val exifOrientation = computeExifOrientation(rotation, mirrored)
 
                         // Build the result and resume progress
-                        cont.resume(CombinedCaptureResult(
-                                image, result, exifOrientation, imageReader.imageFormat))
+                        cont.resume(
+                            CombinedCaptureResult(
+                                image, result, exifOrientation, imageReader.imageFormat
+                            )
+                        )
 
                         // There is no need to break out of the loop, this coroutine will suspend
                     }
@@ -391,52 +410,52 @@ class CameraFragment : Fragment() {
     }
 
     /** Helper function used to save a [CombinedCaptureResult] into a [File] */
-    private suspend fun saveResult(result: CombinedCaptureResult): Bitmap = suspendCoroutine { cont ->
-        when (result.format) {
+    private suspend fun saveResult(result: CombinedCaptureResult): Bitmap =
+        suspendCoroutine { cont ->
+            when (result.format) {
 
-            // When the format is JPEG or DEPTH JPEG we can simply save the bytes as-is
-            ImageFormat.JPEG, ImageFormat.DEPTH_JPEG -> {
-                val bitmapOptions = BitmapFactory.Options().apply {
-                    inJustDecodeBounds = false
-                    // Keep Bitmaps at less than 1 MP
-                    if (max(outHeight, outWidth) > ImageViewerFragment.DOWNSAMPLE_SIZE) {
-                        val scaleFactorX = outWidth / ImageViewerFragment.DOWNSAMPLE_SIZE + 1
-                        val scaleFactorY = outHeight / ImageViewerFragment.DOWNSAMPLE_SIZE + 1
-                        inSampleSize = max(scaleFactorX, scaleFactorY)
+                // When the format is JPEG or DEPTH JPEG we can simply save the bytes as-is
+                ImageFormat.JPEG, ImageFormat.DEPTH_JPEG -> {
+                    val bitmapOptions = BitmapFactory.Options().apply {
+                        inJustDecodeBounds = false
+                        // Keep Bitmaps at less than 1 MP
+                        if (max(result.image.height, result.image.width) > ImageViewerFragment.DOWNSAMPLE_SIZE) {
+                            val scaleFactorX = result.image.width / ImageViewerFragment.DOWNSAMPLE_SIZE + 1
+                            val scaleFactorY = result.image.height / ImageViewerFragment.DOWNSAMPLE_SIZE + 1
+                            inSampleSize = max(scaleFactorX, scaleFactorY)
+                        }
+                        inMutable = true
                     }
-                    inMutable = true
+                    val buffer = result.image.planes[0].buffer
+                    val bytes = ByteArray(buffer.remaining()).apply { buffer.get(this) }
+                    var bitmapImage = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bitmapOptions)
+                    bitmapImage = Bitmap.createBitmap(
+                        bitmapImage,
+                        0,
+                        0,
+                        bitmapImage.width,
+                        bitmapImage.height,
+                        decodeExifOrientation(result.orientation),
+                        true
+                    )
+                    Log.d(TAG, "saveResult: " + result.image.height + " " + result.image.width)
+                    Log.d(TAG, "saveResult: " + bitmapImage.height + " " + bitmapImage.width)
+                    try {
+                        cont.resume(bitmapImage)
+                    } catch (exc: IOException) {
+                        Log.e(TAG, "Unable to write JPEG image to file", exc)
+                        cont.resumeWithException(exc)
+                    }
                 }
-                val buffer = result.image.planes[0].buffer
-                val bytes = ByteArray(buffer.remaining()).apply { buffer.get(this) }
-                val bitmapImage = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bitmapOptions)
-                val matrix = Matrix()
-                val degree = when (result.orientation) {
-                    ExifInterface.ORIENTATION_ROTATE_90 -> 90
-                    ExifInterface.ORIENTATION_ROTATE_180 -> 180
-                    ExifInterface.ORIENTATION_ROTATE_270 -> 270
-                    else -> 0
-                }
-                matrix.postRotate(degree.toFloat())
-                val resizedBitmap: Bitmap = Bitmap.createBitmap(
-                    bitmapImage, 0, 0,
-                    bitmapImage.width, bitmapImage.height, matrix, true
-                )
-                try {
-                    cont.resume(resizedBitmap)
-                } catch (exc: IOException) {
-                    Log.e(TAG, "Unable to write JPEG image to file", exc)
+
+                // No other formats are supported by this sample
+                else -> {
+                    val exc = RuntimeException("Unknown image format: ${result.image.format}")
+                    Log.e(TAG, exc.message, exc)
                     cont.resumeWithException(exc)
                 }
             }
-
-            // No other formats are supported by this sample
-            else -> {
-                val exc = RuntimeException("Unknown image format: ${result.image.format}")
-                Log.e(TAG, exc.message, exc)
-                cont.resumeWithException(exc)
-            }
         }
-    }
 
     override fun onStop() {
         super.onStop()
@@ -469,10 +488,10 @@ class CameraFragment : Fragment() {
 
         /** Helper data class used to hold capture metadata with their associated image */
         data class CombinedCaptureResult(
-                val image: Image,
-                val metadata: CaptureResult,
-                val orientation: Int,
-                val format: Int
+            val image: Image,
+            val metadata: CaptureResult,
+            val orientation: Int,
+            val format: Int
         ) : Closeable {
             override fun close() = image.close()
         }

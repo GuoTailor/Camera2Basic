@@ -6,6 +6,7 @@ import android.util.AttributeSet
 import android.util.Log
 import android.view.MotionEvent
 import android.view.View
+import android.widget.ImageView
 import androidx.annotation.Nullable
 import kotlin.math.min
 
@@ -26,6 +27,7 @@ class SignView : View, View.OnTouchListener {
     var mHeight = 0
     var ratio = 1F
     var offset = 0F
+    var image: ImageView? = null
 
     constructor(context: Context?) : super(context) {
         init()
@@ -45,9 +47,10 @@ class SignView : View, View.OnTouchListener {
         isdraw = false
         mStroke = 8
         setOnTouchListener(this)
+
     }
 
-    fun prepare(bitmap: Bitmap, screenWidth: Int, screenHeight: Int) {
+    fun prepare(bitmap: Bitmap, screenWidth: Int, screenHeight: Int, image: ImageView) {
         mBitmap = bitmap
         mWidth = bitmap.width
         mHeight = bitmap.height
@@ -57,6 +60,7 @@ class SignView : View, View.OnTouchListener {
         val hf = screenHeight / mHeight.toFloat()
         ratio = min(wf, hf)
         offset = (screenHeight / 2) - (mHeight * ratio / 2)
+        this.image = image
         Log.d(TAG, "prepare: $wf $hf")
     }
 
@@ -68,7 +72,8 @@ class SignView : View, View.OnTouchListener {
         paint.strokeWidth = mStroke.toFloat()
 //        canvas.drawPath(path!!, paint)
         canvas1!!.drawPath(path!!, paint)
-        canvas.drawRect(boundary!!, paint)
+//        canvas.drawRect(boundary!!, paint)
+        image?.setImageBitmap(mBitmap)
     }
 
     override fun onTouch(v: View?, event: MotionEvent): Boolean {
